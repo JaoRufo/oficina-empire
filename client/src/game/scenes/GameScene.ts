@@ -19,7 +19,15 @@ export class GameScene extends Phaser.Scene {
     D: Phaser.Input.Keyboard.Key;
   };
 
+  private interactionZone!: Phaser.GameObjects.Zone;
+
   private players: Record<string, Phaser.GameObjects.Sprite> = {};
+
+  private interactionText!: Phaser.GameObjects.Text;
+
+  private interactKey!: Phaser.Input.Keyboard.Key;
+
+  private canInteract = false;
 
   constructor() {
     super("game");
@@ -107,11 +115,38 @@ export class GameScene extends Phaser.Scene {
     this.physics.world.setBounds(0, 0, worldWidth, worldHeight);
 
     // SUV
+
     this.suv = this.physics.add.sprite(220, 160, "suv");
 
     this.suv.setScale(2);
 
     this.suv.setImmovable(true);
+
+    // ZONA DE INTERAÇÃO
+    this.interactionZone = this.add.zone(0, 0, 70, 70);
+    this.interactionZone.setPosition(this.suv.x, this.suv.y);
+
+    this.physics.add.existing(this.interactionZone);
+
+    const graphics = this.add.graphics();
+
+    graphics.lineStyle(2, 0x00ff00);
+
+    graphics.strokeRect(
+      this.interactionZone.x - 35,
+      this.interactionZone.y - 35,
+      70,
+      70,
+    );
+
+    const interactionBody = this.interactionZone
+      .body as Phaser.Physics.Arcade.Body;
+
+    interactionBody.setAllowGravity(false);
+
+    interactionBody.setImmovable(true);
+
+    interactionBody.setSize(70, 70);
 
     // PLAYER
     this.player = this.physics.add.sprite(100, 100, "player_idle");
@@ -128,6 +163,11 @@ export class GameScene extends Phaser.Scene {
 
     // COLISÃO
     this.physics.add.collider(this.player, this.suv);
+
+    // OVERLAP INTERAÇÃO
+    this.physics.add.overlap(this.player, this.interactionZone, () => {
+      this.canInteract = true;
+    });
 
     // ANIMAÇÃO
     this.anims.create({
@@ -146,6 +186,31 @@ export class GameScene extends Phaser.Scene {
       S: Phaser.Input.Keyboard.KeyCodes.S,
       D: Phaser.Input.Keyboard.KeyCodes.D,
     }) as typeof this.wasd;
+
+    this.interactKey = this.input.keyboard!.addKey(
+      Phaser.Input.Keyboard.KeyCodes.E,
+    );
+
+    this.interactionText = this.add.text(0, 0, "[E] Reparar SUV", {
+      fontSize: "14px",
+
+      color: "#ffffff",
+
+      backgroundColor: "#000000",
+
+      padding: {
+        x: 8,
+        y: 4,
+      },
+    });
+
+    this.interactionText.setVisible(false);
+
+    this.interactionText.setScrollFactor(0);
+
+    this.interactionText.setDepth(999);
+
+    this.interactionText.setOrigin(0, 0);
 
     // MULTIPLAYER
     socket.on("currentPlayers", (players: Record<string, RemotePlayer>) => {
@@ -181,10 +246,20 @@ export class GameScene extends Phaser.Scene {
 
     // CAMERA
     this.cameras.main.startFollow(this.player);
-
     this.cameras.main.setZoom(2);
-
     this.cameras.main.setBounds(0, 0, worldWidth, worldHeight);
+
+    // CAMERA UI
+    const uiCamera = this.cameras.add(0, 0, 1280, 720);
+    uiCamera.ignore([
+      ...this.children.list.filter((c) => c !== this.interactionText),
+    ]);
+    this.cameras.main.ignore(this.interactionText);
+
+    this.interactionText.setPosition(
+      640 - this.interactionText.displayWidth / 2,
+      660,
+    );
   }
 
   addRemotePlayer(player: RemotePlayer) {
@@ -198,6 +273,23 @@ export class GameScene extends Phaser.Scene {
   }
 
   update() {
+    const wasInteracting = this.canInteract;
+    this.canInteract = false;
+
+    // usa o valor do frame anterior (setado pelo overlap callback)
+    this.interactionText.setVisible(wasInteracting);
+
+    if (wasInteracting) {
+      this.interactionText.setPosition(
+        640 - this.interactionText.displayWidth / 2,
+        660,
+      );
+
+      if (Phaser.Input.Keyboard.JustDown(this.interactKey)) {
+        console.log("🔧 Reparando SUV...");
+      }
+    }
+
     const speed = 120;
 
     let moved = false;
