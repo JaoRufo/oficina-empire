@@ -10,7 +10,12 @@ type RemotePlayer = {
 export class GameScene extends Phaser.Scene {
   private player!: Phaser.GameObjects.Sprite;
 
-  private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
+  private wasd!: {
+    W: Phaser.Input.Keyboard.Key;
+    A: Phaser.Input.Keyboard.Key;
+    S: Phaser.Input.Keyboard.Key;
+    D: Phaser.Input.Keyboard.Key;
+  };
 
   private players: Record<string, Phaser.GameObjects.Sprite> = {};
 
@@ -19,6 +24,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   preload() {
+    // TILES
     this.load.image("topLeft", "/assets/tiles/tile_0096.png");
 
     this.load.image("top", "/assets/tiles/tile_0097.png");
@@ -37,8 +43,14 @@ export class GameScene extends Phaser.Scene {
 
     this.load.image("bottomRight", "/assets/tiles/tile_0122.png");
 
-    this.load.image("player", "/assets/player/man.png");
+    // PLAYER
+    this.load.image("player_idle", "/assets/player/man.png");
 
+    this.load.image("player_walk1", "/assets/player/man_walk1.png");
+
+    this.load.image("player_walk2", "/assets/player/man_walk2.png");
+
+    // CARRO
     this.load.image("suv", "/assets/cars/suv.png");
   }
 
@@ -50,6 +62,7 @@ export class GameScene extends Phaser.Scene {
     const mapWidth = 30;
     const mapHeight = 20;
 
+    // MAPA
     for (let y = 0; y < mapHeight; y++) {
       for (let x = 0; x < mapWidth; x++) {
         let tile = "center";
@@ -85,17 +98,33 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    // CARRO EXEMPLO
+    // CARRO
     const suv = this.add.sprite(600, 300, "suv");
 
     suv.setScale(2);
 
-    // PLAYER LOCAL
-    this.player = this.add.sprite(400, 300, "player");
+    // PLAYER
+    this.player = this.add.sprite(400, 300, "player_idle");
 
     this.player.setScale(2);
 
-    this.cursors = this.input.keyboard!.createCursorKeys();
+    // ANIMAÇÃO
+    this.anims.create({
+      key: "walk",
+
+      frames: [{ key: "player_walk1" }, { key: "player_walk2" }],
+
+      frameRate: 8,
+      repeat: -1,
+    });
+
+    // WASD
+    this.wasd = this.input.keyboard!.addKeys({
+      W: Phaser.Input.Keyboard.KeyCodes.W,
+      A: Phaser.Input.Keyboard.KeyCodes.A,
+      S: Phaser.Input.Keyboard.KeyCodes.S,
+      D: Phaser.Input.Keyboard.KeyCodes.D,
+    }) as typeof this.wasd;
 
     // PLAYERS ATUAIS
     socket.on("currentPlayers", (players: Record<string, RemotePlayer>) => {
@@ -121,7 +150,7 @@ export class GameScene extends Phaser.Scene {
       remotePlayer.y = player.y;
     });
 
-    // PLAYER SAIU
+    // PLAYER DESCONECTOU
     socket.on("playerDisconnected", (playerId: string) => {
       const player = this.players[playerId];
 
@@ -139,7 +168,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   addRemotePlayer(player: RemotePlayer) {
-    const remotePlayer = this.add.sprite(player.x, player.y, "player");
+    const remotePlayer = this.add.sprite(player.x, player.y, "player_idle");
 
     remotePlayer.setTint(0x00ff00);
 
@@ -149,35 +178,59 @@ export class GameScene extends Phaser.Scene {
   }
 
   update() {
-    const speed = 4;
+    const speed = 2;
 
     let moved = false;
 
-    if (this.cursors.left.isDown) {
+    // ESQUERDA
+    if (this.wasd.A.isDown) {
       this.player.x -= speed;
+
+      this.player.setFlipX(true);
+
       moved = true;
     }
 
-    if (this.cursors.right.isDown) {
+    // DIREITA
+    if (this.wasd.D.isDown) {
       this.player.x += speed;
+
+      this.player.setFlipX(false);
+
       moved = true;
     }
 
-    if (this.cursors.up.isDown) {
+    // CIMA
+    if (this.wasd.W.isDown) {
       this.player.y -= speed;
+
       moved = true;
     }
 
-    if (this.cursors.down.isDown) {
+    // BAIXO
+    if (this.wasd.S.isDown) {
       this.player.y += speed;
+
       moved = true;
     }
 
+    // TOCA ANIMAÇÃO
     if (moved) {
+      if (!this.player.anims.isPlaying) {
+        this.player.play("walk");
+      }
+
       socket.emit("playerMove", {
         x: this.player.x,
         y: this.player.y,
       });
+    }
+
+    // IDLE
+    else {
+      this.player.anims.stop();
+
+      this.player.setTexture("player_idle");
     }
   }
 }
