@@ -64,6 +64,21 @@ export class GameScene extends Phaser.Scene {
 
     // CARRO
     this.load.image("suv", "/assets/cars/suv.png");
+
+    this.load.image("suv_broken", "/assets/cars/suv-broken.png");
+
+    // PROPS
+    this.load.image(
+      "elevator_without_car",
+      "/assets/props/elevator-whithout-car.png",
+    );
+
+    this.load.image("car_on_elevator", "/assets/props/car-on-elevator.png");
+
+    this.load.image(
+      "red_ram_elevator_broken",
+      "/assets/props/red-ram-elevator-broken.png",
+    );
   }
 
   create() {
@@ -120,9 +135,19 @@ export class GameScene extends Phaser.Scene {
 
     this.suv = this.physics.add.sprite(220, 160, "suv");
 
-    this.suv.setScale(2);
+    this.suv.setScale(0.15);
 
     this.suv.setImmovable(true);
+
+    (this.suv.body as Phaser.Physics.Arcade.Body).setSize(
+      this.suv.width * 0.85,
+      this.suv.height * 0.12,
+    );
+
+    (this.suv.body as Phaser.Physics.Arcade.Body).setOffset(
+      this.suv.width * 0.075,
+      this.suv.height * 0.55,
+    );
 
     // ZONA DE INTERAÇÃO
     this.interactionZone = this.add.zone(0, 0, 70, 70);
@@ -217,7 +242,7 @@ export class GameScene extends Phaser.Scene {
     this.statusText.setDepth(1000);
     this.statusText.setVisible(false);
 
-    // // MULTIPLAYER
+    // MULTIPLAYER
     // socket.on("currentPlayers", (players: Record<string, RemotePlayer>) => {
     //   Object.values(players).forEach((player) => {
     //     if (player.id === socket.id) return;
@@ -277,27 +302,43 @@ export class GameScene extends Phaser.Scene {
 
   private startRepair() {
     this.isRepairing = true;
+
+    // ABRE O CAPÔ
+    this.suv.setTexture("suv_broken");
+
+    this.suv.setScale(0.15);
+
     this.statusText.setVisible(true);
 
     const dots = ["", ".", "..", "..."];
+
     let i = 0;
 
     const dotTimer = this.time.addEvent({
       delay: 400,
+
       repeat: 8,
+
       callback: () => {
         this.statusText.setText("Reparando" + dots[i % dots.length]);
+
         this.statusText.setPosition(640, 360);
+
         i++;
       },
     });
 
     this.time.delayedCall(dotTimer.delay * 9 + 200, () => {
       this.statusText.setText("Veiculo reparado!");
+
       this.statusText.setPosition(640, 360);
+
+      // FECHA O CAPÔ
+      this.suv.setTexture("suv");
 
       this.time.delayedCall(2000, () => {
         this.statusText.setVisible(false);
+
         this.isRepairing = false;
       });
     });
@@ -371,14 +412,19 @@ export class GameScene extends Phaser.Scene {
         this.player.play("walk");
       }
 
-      // socket.emit("playerMove", {
-      //   x: this.player.x,
-      //   y: this.player.y,
-      // });
+      //   socket.emit("playerMove", {
+      //     x: this.player.x,
+      //     y: this.player.y,
+      //   });
     } else {
       this.player.anims.stop();
 
       this.player.setTexture("player_idle");
     }
+
+    // PROFUNDIDADE
+    this.player.setDepth(this.player.y);
+
+    this.suv.setDepth(this.suv.y);
   }
 }
