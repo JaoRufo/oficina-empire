@@ -8,7 +8,9 @@ type RemotePlayer = {
 };
 
 export class GameScene extends Phaser.Scene {
-  private player!: Phaser.GameObjects.Sprite;
+  private player!: Phaser.Physics.Arcade.Sprite;
+
+  private suv!: Phaser.Physics.Arcade.Sprite;
 
   private wasd!: {
     W: Phaser.Input.Keyboard.Key;
@@ -59,8 +61,11 @@ export class GameScene extends Phaser.Scene {
 
     const TILE_SIZE = 16;
 
-    const mapWidth = 30;
-    const mapHeight = 20;
+    const mapWidth = 40;
+    const mapHeight = 22;
+
+    const worldWidth = mapWidth * TILE_SIZE;
+    const worldHeight = mapHeight * TILE_SIZE;
 
     // MAPA
     for (let y = 0; y < mapHeight; y++) {
@@ -98,15 +103,31 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    // CARRO
-    const suv = this.add.sprite(600, 300, "suv");
+    // LIMITES DO MUNDO
+    this.physics.world.setBounds(0, 0, worldWidth, worldHeight);
 
-    suv.setScale(2);
+    // SUV
+    this.suv = this.physics.add.sprite(220, 160, "suv");
+
+    this.suv.setScale(2);
+
+    this.suv.setImmovable(true);
 
     // PLAYER
-    this.player = this.add.sprite(400, 300, "player_idle");
+    this.player = this.physics.add.sprite(100, 100, "player_idle");
 
     this.player.setScale(2);
+
+    this.player.setCollideWorldBounds(true);
+
+    // HITBOX PLAYER
+    (this.player.body as Phaser.Physics.Arcade.Body).setSize(
+      this.player.width * 0.5,
+      this.player.height * 0.7,
+    );
+
+    // COLISÃO
+    this.physics.add.collider(this.player, this.suv);
 
     // ANIMAÇÃO
     this.anims.create({
@@ -126,7 +147,7 @@ export class GameScene extends Phaser.Scene {
       D: Phaser.Input.Keyboard.KeyCodes.D,
     }) as typeof this.wasd;
 
-    // PLAYERS ATUAIS
+    // MULTIPLAYER
     socket.on("currentPlayers", (players: Record<string, RemotePlayer>) => {
       Object.values(players).forEach((player) => {
         if (player.id === socket.id) return;
@@ -135,12 +156,10 @@ export class GameScene extends Phaser.Scene {
       });
     });
 
-    // NOVO PLAYER
     socket.on("newPlayer", (player: RemotePlayer) => {
       this.addRemotePlayer(player);
     });
 
-    // PLAYER MOVEU
     socket.on("playerMoved", (player: RemotePlayer) => {
       const remotePlayer = this.players[player.id];
 
@@ -150,7 +169,6 @@ export class GameScene extends Phaser.Scene {
       remotePlayer.y = player.y;
     });
 
-    // PLAYER DESCONECTOU
     socket.on("playerDisconnected", (playerId: string) => {
       const player = this.players[playerId];
 
@@ -165,6 +183,8 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.startFollow(this.player);
 
     this.cameras.main.setZoom(2);
+
+    this.cameras.main.setBounds(0, 0, worldWidth, worldHeight);
   }
 
   addRemotePlayer(player: RemotePlayer) {
@@ -178,13 +198,15 @@ export class GameScene extends Phaser.Scene {
   }
 
   update() {
-    const speed = 2;
+    const speed = 120;
 
     let moved = false;
 
+    this.player.setVelocity(0);
+
     // ESQUERDA
     if (this.wasd.A.isDown) {
-      this.player.x -= speed;
+      this.player.setVelocityX(-speed);
 
       this.player.setFlipX(true);
 
@@ -193,7 +215,7 @@ export class GameScene extends Phaser.Scene {
 
     // DIREITA
     if (this.wasd.D.isDown) {
-      this.player.x += speed;
+      this.player.setVelocityX(speed);
 
       this.player.setFlipX(false);
 
@@ -202,19 +224,24 @@ export class GameScene extends Phaser.Scene {
 
     // CIMA
     if (this.wasd.W.isDown) {
-      this.player.y -= speed;
+      this.player.setVelocityY(-speed);
 
       moved = true;
     }
 
     // BAIXO
     if (this.wasd.S.isDown) {
-      this.player.y += speed;
+      this.player.setVelocityY(speed);
 
       moved = true;
     }
 
-    // TOCA ANIMAÇÃO
+    // NORMALIZA DIAGONAL
+    (this.player.body as Phaser.Physics.Arcade.Body).velocity
+      .normalize()
+      .scale(speed);
+
+    // ANIMAÇÃO
     if (moved) {
       if (!this.player.anims.isPlaying) {
         this.player.play("walk");
@@ -224,10 +251,7 @@ export class GameScene extends Phaser.Scene {
         x: this.player.x,
         y: this.player.y,
       });
-    }
-
-    // IDLE
-    else {
+    } else {
       this.player.anims.stop();
 
       this.player.setTexture("player_idle");
