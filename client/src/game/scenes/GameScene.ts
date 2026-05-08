@@ -23,11 +23,13 @@ export class GameScene extends Phaser.Scene {
 
   private players: Record<string, Phaser.GameObjects.Sprite> = {};
 
-  private interactionText!: Phaser.GameObjects.Text;
+  private suvBalloon!: Phaser.GameObjects.Text;
+  private statusText!: Phaser.GameObjects.Text;
 
   private interactKey!: Phaser.Input.Keyboard.Key;
 
   private canInteract = false;
+  private isRepairing = false;
 
   constructor() {
     super("game");
@@ -130,7 +132,7 @@ export class GameScene extends Phaser.Scene {
 
     const graphics = this.add.graphics();
 
-    graphics.lineStyle(2, 0x00ff00);
+    // graphics.lineStyle(2, 0x00ff00);
 
     graphics.strokeRect(
       this.interactionZone.x - 35,
@@ -191,26 +193,29 @@ export class GameScene extends Phaser.Scene {
       Phaser.Input.Keyboard.KeyCodes.E,
     );
 
-    this.interactionText = this.add.text(0, 0, "[E] Reparar SUV", {
-      fontSize: "14px",
-
+    // BALÃO ACIMA DO SUV
+    this.suvBalloon = this.add.text(0, 0, "[E] Reparar Veiculo", {
+      fontSize: "13px",
       color: "#ffffff",
-
-      backgroundColor: "#000000",
-
-      padding: {
-        x: 8,
-        y: 4,
-      },
+      backgroundColor: "#000000cc",
+      padding: { x: 6, y: 3 },
     });
+    this.suvBalloon.setOrigin(0.5, 1);
+    this.suvBalloon.setDepth(999);
+    this.suvBalloon.setScrollFactor(0);
+    this.suvBalloon.setVisible(false);
 
-    this.interactionText.setVisible(false);
-
-    this.interactionText.setScrollFactor(0);
-
-    this.interactionText.setDepth(999);
-
-    this.interactionText.setOrigin(0, 0);
+    // STATUS TEXT (UI)
+    this.statusText = this.add.text(640, 360, "", {
+      fontSize: "18px",
+      color: "#ffffff",
+      backgroundColor: "#000000cc",
+      padding: { x: 16, y: 8 },
+    });
+    this.statusText.setOrigin(0.5, 0.5);
+    this.statusText.setScrollFactor(0);
+    this.statusText.setDepth(1000);
+    this.statusText.setVisible(false);
 
     // MULTIPLAYER
     socket.on("currentPlayers", (players: Record<string, RemotePlayer>) => {
@@ -251,15 +256,13 @@ export class GameScene extends Phaser.Scene {
 
     // CAMERA UI
     const uiCamera = this.cameras.add(0, 0, 1280, 720);
-    uiCamera.ignore([
-      ...this.children.list.filter((c) => c !== this.interactionText),
-    ]);
-    this.cameras.main.ignore(this.interactionText);
-
-    this.interactionText.setPosition(
-      640 - this.interactionText.displayWidth / 2,
-      660,
+    const uiObjects = [this.suvBalloon, this.statusText];
+    uiCamera.ignore(
+      this.children.list.filter(
+        (c) => !uiObjects.includes(c as Phaser.GameObjects.Text),
+      ),
     );
+    this.cameras.main.ignore(uiObjects);
   }
 
   addRemotePlayer(player: RemotePlayer) {
@@ -272,22 +275,51 @@ export class GameScene extends Phaser.Scene {
     this.players[player.id] = remotePlayer;
   }
 
+  private startRepair() {
+    this.isRepairing = true;
+    this.statusText.setVisible(true);
+
+    const dots = ["", ".", "..", "..."];
+    let i = 0;
+
+    const dotTimer = this.time.addEvent({
+      delay: 400,
+      repeat: 8,
+      callback: () => {
+        this.statusText.setText("Reparando" + dots[i % dots.length]);
+        this.statusText.setPosition(640, 360);
+        i++;
+      },
+    });
+
+    this.time.delayedCall(dotTimer.delay * 9 + 200, () => {
+      this.statusText.setText("Veiculo reparado!");
+      this.statusText.setPosition(640, 360);
+
+      this.time.delayedCall(2000, () => {
+        this.statusText.setVisible(false);
+        this.isRepairing = false;
+      });
+    });
+  }
+
   update() {
     const wasInteracting = this.canInteract;
     this.canInteract = false;
 
-    // usa o valor do frame anterior (setado pelo overlap callback)
-    this.interactionText.setVisible(wasInteracting);
+    // BALÃO DO SUV
+    const cam = this.cameras.main;
+    const suvScreenX = (this.suv.x - cam.worldView.x) * cam.zoom;
+    const suvScreenY = (this.suv.y - cam.worldView.y) * cam.zoom - 50;
+    this.suvBalloon.setPosition(suvScreenX, suvScreenY);
+    this.suvBalloon.setVisible(wasInteracting && !this.isRepairing);
 
-    if (wasInteracting) {
-      this.interactionText.setPosition(
-        640 - this.interactionText.displayWidth / 2,
-        660,
-      );
-
-      if (Phaser.Input.Keyboard.JustDown(this.interactKey)) {
-        console.log("🔧 Reparando SUV...");
-      }
+    if (
+      wasInteracting &&
+      !this.isRepairing &&
+      Phaser.Input.Keyboard.JustDown(this.interactKey)
+    ) {
+      this.startRepair();
     }
 
     const speed = 120;
