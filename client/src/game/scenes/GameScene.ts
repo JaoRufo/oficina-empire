@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { socket } from "../service/socket";
+// import { socket } from "../service/socket";
 
 type RemotePlayer = {
   id: string;
@@ -217,37 +217,37 @@ export class GameScene extends Phaser.Scene {
     this.statusText.setDepth(1000);
     this.statusText.setVisible(false);
 
-    // MULTIPLAYER
-    socket.on("currentPlayers", (players: Record<string, RemotePlayer>) => {
-      Object.values(players).forEach((player) => {
-        if (player.id === socket.id) return;
+    // // MULTIPLAYER
+    // socket.on("currentPlayers", (players: Record<string, RemotePlayer>) => {
+    //   Object.values(players).forEach((player) => {
+    //     if (player.id === socket.id) return;
 
-        this.addRemotePlayer(player);
-      });
-    });
+    //     this.addRemotePlayer(player);
+    //   });
+    // });
 
-    socket.on("newPlayer", (player: RemotePlayer) => {
-      this.addRemotePlayer(player);
-    });
+    // socket.on("newPlayer", (player: RemotePlayer) => {
+    //   this.addRemotePlayer(player);
+    // });
 
-    socket.on("playerMoved", (player: RemotePlayer) => {
-      const remotePlayer = this.players[player.id];
+    // socket.on("playerMoved", (player: RemotePlayer) => {
+    //   const remotePlayer = this.players[player.id];
 
-      if (!remotePlayer) return;
+    //   if (!remotePlayer) return;
 
-      remotePlayer.x = player.x;
-      remotePlayer.y = player.y;
-    });
+    //   remotePlayer.x = player.x;
+    //   remotePlayer.y = player.y;
+    // });
 
-    socket.on("playerDisconnected", (playerId: string) => {
-      const player = this.players[playerId];
+    // socket.on("playerDisconnected", (playerId: string) => {
+    //   const player = this.players[playerId];
 
-      if (!player) return;
+    //   if (!player) return;
 
-      player.destroy();
+    //   player.destroy();
 
-      delete this.players[playerId];
-    });
+    //   delete this.players[playerId];
+    // });
 
     // CAMERA
     this.cameras.main.startFollow(this.player);
@@ -371,10 +371,10 @@ export class GameScene extends Phaser.Scene {
         this.player.play("walk");
       }
 
-      socket.emit("playerMove", {
-        x: this.player.x,
-        y: this.player.y,
-      });
+      // socket.emit("playerMove", {
+      //   x: this.player.x,
+      //   y: this.player.y,
+      // });
     } else {
       this.player.anims.stop();
 
