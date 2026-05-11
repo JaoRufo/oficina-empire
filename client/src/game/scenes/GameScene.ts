@@ -12,6 +12,18 @@ export class GameScene extends Phaser.Scene {
 
   private suv!: Phaser.Physics.Arcade.Sprite;
 
+  private elevator!: Phaser.GameObjects.Image;
+
+  private suvScale = 0.15;
+
+  private suvStartX = 220;
+  private suvStartY = 160;
+
+  private elevatorX = 500;
+  private elevatorY = 160;
+
+  private elevatorScale = 0.2;
+
   private wasd!: {
     W: Phaser.Input.Keyboard.Key;
     A: Phaser.Input.Keyboard.Key;
@@ -67,10 +79,12 @@ export class GameScene extends Phaser.Scene {
 
     this.load.image("suv_broken", "/assets/cars/suv-broken.png");
 
+    this.load.image("suv_returning", "/assets/cars/suv-returning.png");
+
     // PROPS
     this.load.image(
       "elevator_without_car",
-      "/assets/props/elevator-whithout-car.png",
+      "/assets/props/elevator-without-car.png",
     );
 
     this.load.image("car_on_elevator", "/assets/props/car-on-elevator.png");
@@ -133,12 +147,23 @@ export class GameScene extends Phaser.Scene {
 
     // SUV
 
-    this.suv = this.physics.add.sprite(220, 160, "suv");
+    // ELEVADOR FIXO
+    this.elevator = this.add.image(
+      this.elevatorX,
+      this.elevatorY,
+      "elevator_without_car",
+    );
 
-    this.suv.setScale(0.15);
+    this.elevator.setScale(this.elevatorScale);
+
+    // SUV
+    this.suv = this.physics.add.sprite(this.suvStartX, this.suvStartY, "suv");
+
+    this.suv.setScale(this.suvScale);
 
     this.suv.setImmovable(true);
 
+    // HITBOX SUV
     (this.suv.body as Phaser.Physics.Arcade.Body).setSize(
       this.suv.width * 0.85,
       this.suv.height * 0.12,
@@ -303,44 +328,111 @@ export class GameScene extends Phaser.Scene {
   private startRepair() {
     this.isRepairing = true;
 
-    // ABRE O CAPÔ
-    this.suv.setTexture("suv_broken");
-
-    this.suv.setScale(0.15);
-
     this.statusText.setVisible(true);
 
-    const dots = ["", ".", "..", "..."];
+    this.statusText.setText("Levando veiculo ao elevador...");
 
-    let i = 0;
+    // ESCONDE PLAYER (entrou no carro)
+    this.player.setVisible(false);
 
-    const dotTimer = this.time.addEvent({
-      delay: 400,
+    // DESATIVA COLISÃO
+    (this.suv.body as Phaser.Physics.Arcade.Body).enable = false;
 
-      repeat: 8,
+    // SUV ANDANDO ATÉ ELEVADOR
+    this.tweens.add({
+      targets: this.suv,
 
-      callback: () => {
-        this.statusText.setText("Reparando" + dots[i % dots.length]);
+      x: this.elevatorX,
+      y: this.elevatorY,
 
-        this.statusText.setPosition(640, 360);
+      duration: 2000,
 
-        i++;
+      onUpdate: () => {
+        this.suv.setDepth(this.suv.y);
       },
-    });
 
-    this.time.delayedCall(dotTimer.delay * 9 + 200, () => {
-      this.statusText.setText("Veiculo reparado!");
+      onComplete: () => {
+        // PLAYER APARECE AO LADO DO ELEVADOR
+        this.player.setPosition(this.elevatorX - 10, this.elevatorY + 30);
 
-      this.statusText.setPosition(640, 360);
+        this.player.setVisible(true);
 
-      // FECHA O CAPÔ
-      this.suv.setTexture("suv");
+        // ESCONDE SUV NORMAL
+        this.suv.setVisible(false);
 
-      this.time.delayedCall(2000, () => {
-        this.statusText.setVisible(false);
+        // SUV NO ELEVADOR
+        this.elevator.setTexture("car_on_elevator");
 
-        this.isRepairing = false;
-      });
+        this.statusText.setText("Elevando veiculo...");
+
+        // SUV QUEBRADA
+        this.time.delayedCall(2000, () => {
+          this.elevator.setTexture("red_ram_elevator_broken");
+
+          this.statusText.setText("Reparando veiculo...");
+        });
+
+        // FINALIZANDO
+        this.time.delayedCall(5000, () => {
+          this.elevator.setTexture("car_on_elevator");
+
+          this.statusText.setText("Finalizando reparo...");
+        });
+
+        // SUV VOLTANDO
+        this.time.delayedCall(7000, () => {
+          // ELEVADOR VAZIO
+          this.elevator.setTexture("elevator_without_car");
+
+          this.player.setVisible(false);
+
+          // MOSTRA SUV
+          this.suv.setVisible(true);
+
+          // SUV DE VOLTA
+          this.suv.setTexture("suv_returning");
+
+          this.suv.setScale(this.suvScale);
+
+          this.suv.setPosition(this.elevatorX, this.elevatorY);
+
+          // ANIMAÇÃO DE RETORNO
+          this.tweens.add({
+            targets: this.suv,
+
+            x: this.suvStartX,
+            y: this.suvStartY,
+
+            duration: 2000,
+
+            onUpdate: () => {
+              this.suv.setDepth(this.suv.y);
+            },
+
+            onComplete: () => {
+              // VOLTA SUV NORMAL
+              this.suv.setTexture("suv");
+
+              this.player.setVisible(true);
+
+              this.player.setPosition(this.suvStartX - 10, this.suvStartY + 20);
+
+              this.suv.setScale(this.suvScale);
+
+              // REATIVA COLISÃO
+              (this.suv.body as Phaser.Physics.Arcade.Body).enable = true;
+
+              this.statusText.setText("Veiculo pronto!");
+
+              this.time.delayedCall(2000, () => {
+                this.statusText.setVisible(false);
+
+                this.isRepairing = false;
+              });
+            },
+          });
+        });
+      },
     });
   }
 
