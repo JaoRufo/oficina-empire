@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 // import { socket } from "../service/socket";
+// teste
 
 type RemotePlayer = {
   id: string;
